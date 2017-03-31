@@ -1,14 +1,54 @@
-* brokers only hold actively mutating (append) segments
-* roll on to blob store (S3) asap
+# Design Notes
+
+## Improvements over Kafka
+
+### Decoupling Peristence
+Key difference is that we remove long-term persistence from the brokers.
+Instead, we upload segments to S3 immediately after closing them.
+
+Kafka currently needs to copy over historical data when redistributing
+partitions.  Our active state will be tiny (just the append-only segment) so it
+becomes trivial for us.
+
+S3 also gives very cost affordable long term storage.  It becomes feasible to
+have unlimited retention intervals.  Many of the S3 features are also useful,
+including encryption-at-rest (compliance), lifecycle policies for TTL based
+deletion, and using S3 notifications for further processing uploaded segments.
+
+The brokers also give time-based batching for "free" in the segments that they
+upload to S3.
+
+### Autoscaling Partitions
+Streamroller will auto partition a topic based on incoming message velocity.
+When the velocity drops, the partition count will drop down again.  This
+balances the number of segment files vs. the amount of data.  Scaling for
+producer parallelism is built-in.
+
+For consumer parallelism, we leave it to the consuming framework to shuffle out
+work items to workers, if necessary.  We essentially leave this problem for the
+downstream consumer and simply the brokers and configuration accordingly.
+
+### Simple Clients
+Client Implementation should be simple.  The original Kafka had the clients
+manage collaborative consumption using Zookeeper.  This meant that only the Java
+client was fully featured and that all non-JVM languages had poor experiences.
+Kafka has made progress on this by moving more of the logic to the brokers
+starting with 0.10, but we will do it right from the start.
+
+### Avoid Touching Disk
+We only need to maintain the currently segments and any that are pending flush
+to S3.  We may be able to avoid touching disk entirely and rely on memory only.
+The working set even for high-velocity topics should be modest.
+
+### Performance Goal
+A target goal is 100x the msg/sec performance of equally priced hardware running
+Kafka.
+
+
+## Uncategorized
 * k-factor replication, don't touch disk.
-* client implementation must be simple
-* streams should be auto partitioning based on current write volume 
-* goal is to support massive RPS at very low cost
-* brokers give free arrival-based batching (to S3)
 * non-latency sensitive readers can just consume S3, perhaps through S3
   notifications
-* getting durable state of brokers big win over Kafka.  Drops cluster cost,
-  simplifies scaling
 * operational docs should be amazing
 * optimization? begin S3 upload before local segment hits time
   threshold to reduce time on box
