@@ -40,15 +40,36 @@ We only need to maintain the currently segments and any that are pending flush
 to S3.  We may be able to avoid touching disk entirely and rely on memory only.
 The working set even for high-velocity topics should be modest.
 
+We should use k-factor replication for durability.  The loss of data in worst
+case is bounded by the amount of data pending S3 flush.
+
 ### Performance Goal
 A target goal is 100x the msg/sec performance of equally priced hardware running
 Kafka.
 
+### Stable Communication Protocol
+Kafka has built up a decent collection of protocol versions now.  It also looks
+like they couple protocol changes to the Kafka version number, rather than use
+separate versioning for the two.
+
+Streamroller will have a separate protocol versioning.  Extreme effort will be
+made to keep the protocol stable.
+
+### No JVM
+None of the operational tuning that comes with it.  No GC pauses.
+
+## Misc Design Ideas
+
+### Semantic Versioning
+Use it from the start.
+
+### Use Zstandard compression
+This is a "maybe".  Currently there is only the canonical implementation which
+is written is C.  That doesn't really play nice with Go, which has terrible Cgo
+performance.
+
 
 ## Uncategorized
-* k-factor replication, don't touch disk.
-* non-latency sensitive readers can just consume S3, perhaps through S3
-  notifications
+* non-latency sensitive readers can just consume S3, perhaps through S3 notifications
 * operational docs should be amazing
-* optimization? begin S3 upload before local segment hits time
-  threshold to reduce time on box
+* optimization? begin S3 upload before local segment hits time threshold to reduce time on box
