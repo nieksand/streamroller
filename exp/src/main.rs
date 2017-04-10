@@ -3,9 +3,31 @@ extern crate zstd;
 use std::io::Write;
 use std::fs::File;
 use std::fs;
+use std::sync::Mutex;
+
+
+struct PooledWriter {
+	chunks: Mutex<Vec<Vec<u8>>>,
+}
+
+impl PooledWriter {
+	pub fn new(num_chunks: usize, chunk_size_bytes: usize) -> PooledWriter {
+		let pw = PooledWriter{chunks: Mutex::new(Vec::new())};
+		{
+			let mut c = pw.chunks.lock().unwrap();
+			for _ in 0..num_chunks {
+				c.push(Vec::with_capacity(chunk_size_bytes));
+			}
+		}
+		pw
+	}
+}
+
+
+
+
 
 fn main() {
-
 	// pretend inputs
 	let mut msgs: Vec<String> = Vec::new();
 	msgs.push("When in the Course of human events it becomes necessary for one people to dissolve the political bands which have connected them with another and to assume among the powers of the earth, the separate and equal station to which the Laws of Nature and of Nature's God entitle them, a decent respect to the opinions of mankind requires that they should declare the causes which impel them to the separation.".to_string());
@@ -44,6 +66,8 @@ fn main() {
 
 	// output file
 	let out_file = File::create("foo.zstd").unwrap();
+
+	let _ = PooledWriter::new(32, 64*1024*1024);
 
 	// zstd writer
 	let mut zwriter = zstd::Encoder::new(out_file, 1).unwrap();
