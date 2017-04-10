@@ -1,8 +1,8 @@
 extern crate zstd;
 
-use std::io;
 use std::io::Write;
-
+use std::fs::File;
+use std::fs;
 
 fn main() {
 
@@ -42,16 +42,25 @@ fn main() {
 	msgs.push("Nor have We been wanting in attentions to our British brethren. We have warned them from time to time of attempts by their legislature to extend an unwarrantable jurisdiction over us. We have reminded them of the circumstances of our emigration and settlement here. We have appealed to their native justice and magnanimity, and we have conjured them by the ties of our common kindred to disavow these usurpations, which would inevitably interrupt our connections and correspondence. They too have been deaf to the voice of justice and of consanguinity. We must, therefore, acquiesce in the necessity, which denounces our Separation, and hold them, as we hold the rest of mankind, Enemies in War, in Peace Friends.".to_string());
 	msgs.push("We, therefore, the Representatives of the united States of America, in General Congress, Assembled, appealing to the Supreme Judge of the world for the rectitude of our intentions, do, in the Name, and by Authority of the good People of these Colonies, solemnly publish and declare, That these united Colonies are, and of Right ought to be Free and Independent States, that they are Absolved from all Allegiance to the British Crown, and that all political connection between them and the State of Great Britain, is and ought to be totally dissolved; and that as Free and Independent States, they have full Power to levy War, conclude Peace, contract Alliances, establish Commerce, and to do all other Acts and Things which Independent States may of right do. — And for the support of this Declaration, with a firm reliance on the protection of Divine Providence, we mutually pledge to each other our Lives, our Fortunes, and our sacred Honor.".to_string());
 
-	// copy in N msgs
-	let mut zwriter = zstd::Encoder::new(io::sink(), 1).unwrap();
+	// output file
+	let out_file = File::create("foo.zstd").unwrap();
 
+	// zstd writer
+	let mut zwriter = zstd::Encoder::new(out_file, 1).unwrap();
+
+	// emit messages
 	println!("begin hanky panky");
+	let mut bytes_in: u64 = 0;
 	for i in 0..12000000 {
 		let msg = &msgs[i%msgs.len()].as_bytes();
-
-		// append to output buffer
+		bytes_in += msg.len() as u64;
 		zwriter.write(&msg[..]).unwrap();
 	}
 	zwriter.finish().unwrap();
-	println!("done!");
+
+	// figure out file size
+	let metadata = fs::metadata("foo.zstd").unwrap();
+	let bytes_out: u64 = metadata.len();
+
+	println!("done! in={}, out={}, ratio={:.2}", bytes_in, bytes_out, (bytes_in as f64)/(bytes_out as f64));
 }
